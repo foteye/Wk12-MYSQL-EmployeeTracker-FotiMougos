@@ -13,13 +13,58 @@ const query = util.promisify(connection.query).bind(connection);
 main();
 
 async function main() {
-    console.table(await readTable("department"));
-    await createDepartment("Catering");
-    console.table(await readTable("department"));
+    var quit = false;
+
+    while (!quit){
+        await inquirer
+            .prompt({
+            name: "action",
+            type: "rawlist",
+            message: "What would you like to do?",
+            choices: [
+                "View Departments",
+                "View Roles",
+                "View Employees",
+                "Quit"
+            ]
+        })
+            .then(async function(answer) {
+            switch (answer.action) {
+            case "View Departments":
+                console.table(await readTable("department"));
+                break;
+
+            case "View Roles":
+                console.table(await readTable("role"));
+                break;
+
+            case "View Employees":
+                console.table(await readTable("employee"));
+                break;
+
+            case "Quit":
+                quit = true;
+                break;
+            }
+        });
+    }
+    
+    // console.table(await readTable("department"));
+    // await createDepartment("Catering");
+    // console.table(await readTable("department"));
     connection.end();
     
 }
 
+/*=====================
+    MENU FUNCTIONS
+======================*/
+
+
+
+/*=====================
+    CREATE FUNCTIONS
+======================*/
 async function createEmployee(first, last, roleID, managerID){
     await query(`INSERT INTO department SET ?`,{
         id : uuid.v4(),
@@ -46,6 +91,10 @@ async function createDepartment(name){
     });
 }
 
+/*=====================
+    READ FUNCTIONS
+======================*/
+
 // Gets the data out of a table
 async function readTable(table){
     let data;
@@ -55,7 +104,11 @@ async function readTable(table){
         console.log(e);
     }
     return data;
-}   
+}
+
+/*=====================
+    DATABASE FUNCTIONS
+======================*/
 
 function connectDatabase(database, password) {
     const connection = mysql.createConnection({
