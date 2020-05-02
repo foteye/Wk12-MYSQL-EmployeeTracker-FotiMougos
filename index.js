@@ -25,21 +25,41 @@ async function main() {
                 "View Departments",
                 "View Roles",
                 "View Employees",
+                "Create Department",
+                "Create Role",
+                "Create Employee",
+                "Update Employee Role",
                 "Quit"
             ]
         })
             .then(async function(answer) {
             switch (answer.action) {
             case "View Departments":
-                console.table(await readTable("department"));
+                console.table(await readDepartments());
                 break;
 
             case "View Roles":
-                console.table(await readTable("role"));
+                console.table(await readRoles());
                 break;
 
             case "View Employees":
-                console.table(await readTable("employee"));
+                console.table(await readEmployees());
+                break;
+
+            case "Create Department":
+                console.log(await createDepartment());
+                break;
+
+            case "Create Role":
+                console.log(await createRole());
+                break;
+
+            case "Create Employee":
+                console.log(await createEmployee());
+                break;
+
+            case "Update Employee Role":
+                console.log(await updateEmployeeRole());
                 break;
 
             case "Quit":
@@ -49,46 +69,155 @@ async function main() {
         });
     }
     
-    // console.table(await readTable("department"));
-    // await createDepartment("Catering");
-    // console.table(await readTable("department"));
     connection.end();
     
 }
 
 /*=====================
-    MENU FUNCTIONS
+    UPDATE FUNCTIONS
 ======================*/
 
+async function updateEmployeeRole(){
+    const employees = await readEmployees();
+    const roles = await readRoles();
+    const choiceEmployees = [];
+    const choiceRoles = [];
 
+    for (var employee of employees){
+        choiceEmployees.push({name : `${employee.FirstName} ${employee.LastName} (${employee.Title})`, value: employee.id});
+    }
+
+    for (var role of roles){
+        choiceRoles.push({name : `${role.title} (${role.department})`, value: role.id});
+    }
+    
+    await inquirer
+    .prompt([{
+        name: 'employeeID',
+        type: 'list',
+        message: 'Please select whose role you would like to change',
+        choices: choiceEmployees
+    },
+    {
+        name: 'roleID',
+        type: 'list',
+        message: 'Please select the new role of this user',
+        choices: choiceRoles
+
+    }])
+    .then(async answers => {
+        await query(`
+            UPDATE employee
+            SET 
+                role_id = "${answers.roleID}"
+            WHERE
+                id = "${answers.employeeID}";`
+        );
+    });
+    return "Done!";
+}
 
 /*=====================
     CREATE FUNCTIONS
 ======================*/
-async function createEmployee(first, last, roleID, managerID){
-    await query(`INSERT INTO department SET ?`,{
-        id : uuid.v4(),
-        first_name : first,
-        last_name : last,
-        role_id : roleID,
-        manager_id : (managerID || '')
-  });
-}
+async function createEmployee(){
+    const roles = await readRoles();
+    const managers = await readEmployees();
 
-async function createRole(title, salary, departmentID){
-    await query(`INSERT INTO department SET ?`,{
-        id : uuid.v4(),
-        title : title,
-        salary : salary,
-        department_id : departmentID
-  });
-}
+    const choiceRoles = [];
+    const choiceManagers = [];
 
-async function createDepartment(name){
-    await query(`INSERT INTO department SET ?`,{
-          id : uuid.v4(),
-          name : name
+    for (var role of roles){
+        choiceRoles.push({name : `${role.title} (${role.department})`, value: role.id});
+    }
+
+    for (var manager of managers){
+        choiceManagers.push({name : `${manager.FirstName} ${manager.LastName} (${manager.Title})`, value: manager.id});
+    }
+    choiceManagers.push({name : "None", value : ''});
+
+    await inquirer
+    .prompt([{
+        name: 'firstName',
+        message: 'Please enter the first name of the employee'
+    },
+    {
+        name: 'lastName',
+        message: "Please enter the last name of the employee"
+    },
+    {
+        name: 'roleID',
+        type: 'list',
+        message: 'Please select the role of this user',
+        choices: choiceRoles
+
+    },
+    {
+        name: 'managerID',
+        type: 'list',
+        message: 'Please select the role of this user',
+        choices: choiceManagers
+    }])
+    .then(async answers => {
+        await query(`INSERT INTO employee SET ?`,{
+            id : uuid.v4(),
+            first_name : answers.firstName,
+            last_name : answers.lastName,
+            role_id : answers.roleID,
+            manager_id : answers.managerID
+        });
     });
+    return "Done!";
+}
+
+async function createRole(){
+    var departments = await readDepartments();
+    var choiceDepartments = [];
+
+    for (var department of departments){
+        choiceDepartments.push({name : department.name, value: department.id});
+    }
+
+    await inquirer
+    .prompt([{
+        name: 'roleName',
+        message: 'Please enter the name of the role'
+    },
+    {
+        name: 'salary',
+        message: "Please enter the salary for this role"
+    },
+    {
+        name: 'deptID',
+        type: 'list',
+        message: 'Please select the department this role belongs to',
+        choices: choiceDepartments
+
+    }])
+    .then(async answers => {
+        await query(`INSERT INTO role SET ?`,{
+            id : uuid.v4(),
+            title : answers.roleName,
+            salary : answers.salary,
+            department_id : answers.deptID
+        });
+    });
+    return "Done!";
+}
+
+async function createDepartment(){
+    await inquirer
+    .prompt({
+        name: 'deptName',
+        message: 'Please enter the name of the department'
+    })
+    .then(async answers => {
+        await query(`INSERT INTO department SET ?`,{
+          id : uuid.v4(),
+          name : answers.deptName
+        });
+    });
+    return "Done!";
 }
 
 /*=====================
@@ -96,10 +225,38 @@ async function createDepartment(name){
 ======================*/
 
 // Gets the data out of a table
-async function readTable(table){
+async function readRoles(){
     let data;
     try {    
-        data = await query(`SELECT * FROM ${table}`);
+        data = await query(`SELECT r.id, r.title, r.salary, d.name department FROM role r INNER JOIN department d ON d.id = r.department_id`);
+    } catch (e) {
+        console.log(e);
+    }
+    return data;
+}
+
+async function readDepartments(){
+    let data;
+    try {    
+        data = await query(`SELECT id, name FROM department`);
+    } catch (e) {
+        console.log(e);
+    }
+    return data;
+}
+
+async function readEmployees(){
+    let data;
+    try {    
+        data = await query(`SELECT 
+                                e.id, e.first_name FirstName, e.last_name LastName, r.title Title, m.first_name ManagerFirst, m.last_name ManagerLast
+                            FROM 
+                                employee e 
+                            INNER JOIN 
+                                role r ON r.id = e.role_id
+                            LEFT JOIN
+                                employee m ON m.id = e.manager_id
+                            `);
     } catch (e) {
         console.log(e);
     }
